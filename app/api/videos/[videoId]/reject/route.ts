@@ -1,12 +1,31 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { videoId: string } }
+  { params }: { params: Promise<{ videoId: string }> }
 ) {
-  const { videoId } = params;
+  const { videoId } = await params;
   const body = await req.json().catch(() => ({}));
-  const feedback: string | undefined = body.feedback;
-  // TODO: update video_jobs set review_status = 'rejected', review_feedback = feedback where id = videoId
-  return Response.json({ ok: true, videoId, feedback });
+  const feedback: string | null = body.feedback ?? null;
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { error } = await supabase
+    .from("video_jobs")
+    .update({
+      review_status: "REJECTED",
+      review_feedback: feedback,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", videoId);
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  return Response.json({ success: true });
 }
