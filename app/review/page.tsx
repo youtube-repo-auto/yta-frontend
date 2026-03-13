@@ -100,9 +100,21 @@ export default function ReviewPage() {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
-                  <CardTitle className="text-lg">
-                    {job.title_concept ?? "(geen titel)"}
-                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg">
+                      {job.title_concept ?? "(geen titel)"}
+                    </CardTitle>
+                    <Badge
+                      variant="outline"
+                      className={
+                        job.format === "SHORT"
+                          ? "text-purple-600 border-purple-400 text-xs"
+                          : "text-blue-600 border-blue-400 text-xs"
+                      }
+                    >
+                      {job.format ?? "LONG"}
+                    </Badge>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {job.niche ?? "—"} · {job.script_word_count ?? 0} woorden ·{" "}
                     {new Date(job.created_at).toLocaleDateString("nl-NL")}

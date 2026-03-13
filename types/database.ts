@@ -24,6 +24,7 @@ export type VideoJob = {
   review_status: string | null;
   review_feedback: string | null;
   error_message: string | null;
+  format?: 'LONG' | 'SHORT';
   created_at: string;
   updated_at: string;
 };
