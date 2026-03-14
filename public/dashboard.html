@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YTA Swarms — Pipeline Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ============================================================
+       ART DIRECTION: Analytics dashboard — precision, dark-first
+       Palette: near-black surfaces, green accent (money/wealth)
+       Font: Inter (data clarity) + JetBrains Mono (URLs, IDs)
+       Density: compact — every pixel has a purpose
+    ============================================================ */
+
+    :root {
+      /* Type scale */
+      --text-xs:   clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm:   clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg:   clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl:   clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+
+      /* Spacing */
+      --space-1:  0.25rem;  /* 4px */
+      --space-2:  0.5rem;   /* 8px */
+      --space-3:  0.75rem;  /* 12px */
+      --space-4:  1rem;     /* 16px */
+      --space-5:  1.25rem;  /* 20px */
+      --space-6:  1.5rem;   /* 24px */
+      --space-8:  2rem;     /* 32px */
+      --space-10: 2.5rem;   /* 40px */
+      --space-12: 3rem;     /* 48px */
+
+      /* Radius */
+      --radius-sm: 0.25rem;
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-xl: 0.75rem;
+      --radius-full: 9999px;
+
+      /* Transitions */
+      --transition: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+
+      /* Content widths */
+      --content-wide: 1400px;
+
+      /* Font families */
+      --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    /* Dark mode (default for dashboard) */
+    :root, [data-theme="dark"] {
+      --color-bg:              #0d0d0c;
+      --color-surface:         #141413;
+      --color-surface-2:       #191918;
+      --color-surface-offset:  #1e1e1c;
+      --color-surface-dynamic: #252523;
+      --color-divider:         #252523;
+      --color-border:          #2e2e2c;
+
+      --color-text:            #e8e6e3;
+      --color-text-muted:      #7a7875;
+      --color-text-faint:      #4a4845;
+      --color-text-inverse:    #0d0d0c;
+
+      /* Green accent — wealth, growth, Snowball branding */
+      --color-primary:         #22c55e;
+      --color-primary-hover:   #16a34a;
+      --color-primary-active:  #15803d;
+      --color-primary-dim:     rgba(34, 197, 94, 0.12);
+      --color-primary-glow:    rgba(34, 197, 94, 0.06);
+
+      /* Status colors */
+      --color-success:         #22c55e;
+      --color-success-bg:      rgba(34, 197, 94, 0.1);
+      --color-warning:         #f59e0b;
+      --color-warning-bg:      rgba(245, 158, 11, 0.1);
+      --color-error:           #ef4444;
+      --color-error-bg:        rgba(239, 68, 68, 0.1);
+      --color-info:            #3b82f6;
+      --color-info-bg:         rgba(59, 130, 246, 0.1);
+      --color-purple:          #a855f7;
+      --color-purple-bg:       rgba(168, 85, 247, 0.1);
+      --color-orange:          #f97316;
+      --color-orange-bg:       rgba(249, 115, 22, 0.1);
+      --color-teal:            #14b8a6;
+      --color-teal-bg:         rgba(20, 184, 166, 0.1);
+
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+      --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
+      --shadow-lg:  0 12px 32px rgba(0,0,0,0.6);
+    }
+
+    [data-theme="light"] {
+      --color-bg:              #f5f5f4;
+      --color-surface:         #fafaf9;
+      --color-surface-2:       #ffffff;
+      --color-surface-offset:  #f0efed;
+      --color-surface-dynamic: #e8e7e4;
+      --color-divider:         #e2e0dc;
+      --color-border:          #d4d2cc;
+      --color-text:            #1c1b19;
+      --color-text-muted:      #6b6965;
+      --color-text-faint:      #a8a7a3;
+      --color-text-inverse:    #fafaf9;
+      --color-primary:         #16a34a;
+      --color-primary-hover:   #15803d;
+      --color-primary-active:  #166534;
+      --color-primary-dim:     rgba(22, 163, 74, 0.1);
+      --color-primary-glow:    rgba(22, 163, 74, 0.05);
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md:  0 4px 12px rgba(0,0,0,0.1);
+      --shadow-lg:  0 12px 32px rgba(0,0,0,0.14);
+    }
+
+    /* ============================================================
+       BASE RESET
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      background: var(--color-bg);
+      height: 100dvh;
+      overflow: hidden;
+      line-height: 1.5;
+    }
+
+    img { display: block; max-width: 100%; }
+    button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    table { border-collapse: collapse; width: 100%; }
+    input, select { font: inherit; color: inherit; background: none; border: none; }
+
+    ::selection { background: var(--color-primary-dim); color: var(--color-text); }
+
+    :focus-visible {
+      outline: 1.5px solid var(--color-primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* Tabular numbers for data */
+    .num { font-variant-numeric: tabular-nums lining-nums; }
+
+    /* ============================================================
+       DASHBOARD LAYOUT — full-viewport grid
+    ============================================================ */
+    .dashboard {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 1fr;
+      height: 100dvh;
+    }
+
+    /* ============================================================
+       SIDEBAR
+    ============================================================ */
+    .sidebar {
+      grid-row: 1 / -1;
+      background: var(--color-surface);
+      border-right: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .sidebar-logo {
+      padding: var(--space-4) var(--space-4) var(--space-3);
+      border-bottom: 1px solid var(--color-divider);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+
+    .logo-text strong {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .logo-text span {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    .sidebar-section {
+      padding: var(--space-3) var(--space-2);
+    }
+
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-faint);
+      padding: var(--space-2) var(--space-2);
+      margin-bottom: var(--space-1);
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-2);
+      border-radius: var(--radius-md);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      transition: background var(--transition), color var(--transition);
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .sidebar-item:hover {
+      background: var(--color-surface-offset);
+      color: var(--color-text);
+    }
+
+    .sidebar-item.active {
+      background: var(--color-primary-dim);
+      color: var(--color-primary);
+    }
+
+    .sidebar-item svg { flex-shrink: 0; }
+
+    .sidebar-item .item-badge {
+      margin-left: auto;
+      font-size: 10px;
+      background: var(--color-surface-dynamic);
+      color: var(--color-text-muted);
+      border-radius: var(--radius-full);
+      padding: 1px 6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sidebar-item.active .item-badge {
+      background: var(--color-primary-dim);
+      color: var(--color-primary);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: var(--space-3) var(--space-2);
+      border-top: 1px solid var(--color-divider);
+    }
+
+    .scheduler-widget {
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3);
+    }
+
+    .scheduler-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+
+    .scheduler-title {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .scheduler-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-success);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .scheduler-dot.idle { background: var(--color-text-faint); animation: none; }
+    .scheduler-dot.error { background: var(--color-error); animation: none; }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .scheduler-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--color-text-faint);
+      margin-bottom: 2px;
+    }
+
+    .scheduler-row span:last-child {
+      color: var(--color-text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ============================================================
+       MAIN CONTENT
+    ============================================================ */
+    .main-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    .topbar {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: 0 var(--space-6);
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .page-title {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .realtime-badge {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      padding: 4px var(--space-2);
+      border-radius: var(--radius-full);
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+    }
+
+    .realtime-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-success);
+    }
+
+    .realtime-dot.connecting { background: var(--color-warning); }
+    .realtime-dot.error { background: var(--color-error); }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .icon-btn:hover {
+      background: var(--color-surface-offset);
+      color: var(--color-text);
+    }
+
+    /* MAIN SCROLL AREA */
+    .main-content {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: var(--space-6);
+      flex: 1;
+    }
+
+    /* ============================================================
+       KPI ROW
+    ============================================================ */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+    }
+
+    .kpi-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      transition: box-shadow var(--transition);
+    }
+
+    .kpi-card:hover { box-shadow: var(--shadow-md); }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-text-faint);
+      margin-bottom: var(--space-2);
+    }
+
+    .kpi-value {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-text);
+      line-height: 1;
+      margin-bottom: var(--space-1);
+    }
+
+    .kpi-sub {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    /* ============================================================
+       PIPELINE FLOW
+    ============================================================ */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    .section-title {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .pipeline-container {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      margin-bottom: var(--space-6);
+      overflow-x: auto;
+    }
+
+    .pipeline-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      min-width: max-content;
+    }
+
+    .pipeline-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-1);
+      position: relative;
+    }
+
+    .pipeline-connector {
+      width: 28px;
+      height: 2px;
+      background: var(--color-divider);
+      flex-shrink: 0;
+      position: relative;
+      top: -8px;
+    }
+
+    .pipeline-connector.active {
+      background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dim));
+    }
+
+    .pipeline-connector.done {
+      background: var(--color-primary);
+    }
+
+    .step-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--color-surface-offset);
+      border: 2px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      position: relative;
+    }
+
+    .step-circle.done {
+      background: var(--color-primary-dim);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
+    .step-circle.active {
+      background: var(--color-primary-dim);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+      box-shadow: 0 0 0 4px var(--color-primary-glow);
+      animation: step-pulse 2s ease-in-out infinite;
+    }
+
+    .step-circle.error {
+      background: var(--color-error-bg);
+      border-color: var(--color-error);
+      color: var(--color-error);
+    }
+
+    @keyframes step-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--color-primary-glow); }
+      50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.03); }
+    }
+
+    .step-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--color-text-faint);
+      text-align: center;
+      white-space: nowrap;
+      max-width: 64px;
+      line-height: 1.2;
+    }
+
+    .step-label.active { color: var(--color-primary); }
+    .step-label.done { color: var(--color-text-muted); }
+
+    .step-count {
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-primary);
+      font-weight: 600;
+      background: var(--color-primary-dim);
+      border-radius: var(--radius-full);
+      padding: 1px 5px;
+      min-width: 16px;
+      text-align: center;
+    }
+
+    .step-count.zero {
+      color: var(--color-text-faint);
+      background: transparent;
+    }
+
+    /* ============================================================
+       AGENT CARDS
+    ============================================================ */
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+    }
+
+    .agent-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      transition: box-shadow var(--transition), border-color var(--transition);
+    }
+
+    .agent-card:hover { box-shadow: var(--shadow-md); }
+    .agent-card.running { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary-dim); }
+    .agent-card.error { border-color: var(--color-error); }
+
+    .agent-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+
+    .agent-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .agent-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-idle { background: var(--color-surface-offset); color: var(--color-text-faint); }
+    .status-running {
+      background: var(--color-primary-dim);
+      color: var(--color-primary);
+    }
+    .status-error { background: var(--color-error-bg); color: var(--color-error); }
+    .status-done { background: var(--color-success-bg); color: var(--color-success); }
+
+    .status-running::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    .agent-name {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 2px;
+    }
+
+    .agent-model {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      padding: 2px 7px;
+      font-family: var(--font-mono);
+    }
+
+    .model-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-haiku    { background: var(--color-info); }
+    .dot-sonnet   { background: var(--color-purple); }
+    .dot-edge-tts { background: var(--color-teal); }
+    .dot-pexels   { background: var(--color-orange); }
+    .dot-sdxl     { background: var(--color-warning); }
+    .dot-ytapi    { background: var(--color-error); }
+
+    .agent-footer {
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--color-divider);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .agent-meta {
+      font-size: 11px;
+      color: var(--color-text-faint);
+    }
+
+    .agent-count {
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--color-text-muted);
+    }
+
+    /* ============================================================
+       JOBS TABLE
+    ============================================================ */
+    .table-container {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+
+    .table-toolbar {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--color-divider);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+      max-width: 320px;
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--color-text);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .search-input::placeholder { color: var(--color-text-faint); }
+    .search-input:focus { border-color: var(--color-primary); }
+
+    .filter-select {
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--color-text);
+      cursor: pointer;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .filter-select:focus { border-color: var(--color-primary); }
+
+    .table-scroll {
+      overflow-x: auto;
+      overscroll-behavior: contain;
+    }
+
+    .jobs-table {
+      width: 100%;
+      font-size: var(--text-xs);
+    }
+
+    .jobs-table thead tr {
+      background: var(--color-surface-offset);
+      border-bottom: 1px solid var(--color-divider);
+    }
+
+    .jobs-table th {
+      padding: var(--space-2) var(--space-3);
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--color-text-faint);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: color var(--transition);
+    }
+
+    .jobs-table th:hover { color: var(--color-text-muted); }
+    .jobs-table th.sorted { color: var(--color-primary); }
+
+    .jobs-table td {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--color-divider);
+      color: var(--color-text-muted);
+      vertical-align: middle;
+    }
+
+    .jobs-table tr:last-child td { border-bottom: none; }
+
+    .jobs-table tbody tr {
+      transition: background var(--transition);
+    }
+
+    .jobs-table tbody tr:hover {
+      background: var(--color-surface-offset);
+    }
+
+    .jobs-table tbody tr.new-row {
+      animation: row-flash 1.5s ease-out;
+    }
+
+    @keyframes row-flash {
+      0% { background: var(--color-primary-dim); }
+      100% { background: transparent; }
+    }
+
+    /* Status badges in table */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pill-idea            { background: var(--color-info-bg); color: var(--color-info); }
+    .pill-researched      { background: var(--color-purple-bg); color: var(--color-purple); }
+    .pill-scripted        { background: var(--color-teal-bg); color: var(--color-teal); }
+    .pill-voice_generated { background: var(--color-orange-bg); color: var(--color-orange); }
+    .pill-video_generated { background: var(--color-warning-bg); color: var(--color-warning); }
+    .pill-media_generated { background: var(--color-warning-bg); color: var(--color-warning); }
+    .pill-seo_optimized   { background: var(--color-info-bg); color: var(--color-info); }
+    .pill-published       { background: var(--color-success-bg); color: var(--color-success); }
+    .pill-error           { background: var(--color-error-bg); color: var(--color-error); }
+
+    .format-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.04em;
+    }
+
+    .format-long  { background: rgba(59, 130, 246, 0.12); color: var(--color-info); }
+    .format-short { background: var(--color-orange-bg); color: var(--color-orange); }
+
+    .title-cell {
+      max-width: 260px;
+      font-weight: 500;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .yt-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--color-error);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      transition: color var(--transition);
+    }
+
+    .yt-link:hover { color: var(--color-error); text-decoration: underline; }
+
+    .error-cell {
+      max-width: 180px;
+      font-size: 10px;
+      color: var(--color-error);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: default;
+    }
+
+    .time-cell {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-faint);
+      white-space: nowrap;
+    }
+
+    .table-footer {
+      padding: var(--space-3) var(--space-4);
+      border-top: 1px solid var(--color-divider);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .page-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .page-btn:hover { background: var(--color-surface-offset); color: var(--color-text); }
+    .page-btn.active { background: var(--color-primary-dim); color: var(--color-primary); font-weight: 600; }
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ============================================================
+       QUOTA INDICATOR
+    ============================================================ */
+    .quota-bar {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .quota-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: var(--color-warning-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-warning);
+      flex-shrink: 0;
+    }
+
+    .quota-info {
+      flex: 1;
+    }
+
+    .quota-title {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 2px;
+    }
+
+    .quota-desc {
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+
+    .quota-count {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      color: var(--color-warning);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quota-bar.ok .quota-icon { background: var(--color-success-bg); color: var(--color-success); }
+    .quota-bar.ok .quota-count { color: var(--color-success); }
+
+    /* ============================================================
+       TOAST NOTIFICATIONS
+    ============================================================ */
+    .toast-container {
+      position: fixed;
+      bottom: var(--space-4);
+      right: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-xs);
+      color: var(--color-text);
+      box-shadow: var(--shadow-lg);
+      pointer-events: all;
+      animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 320px;
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
+
+    .toast.fade-out { animation: toast-out 0.3s ease forwards; }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateY(0) scale(1); }
+      to   { opacity: 0; transform: translateY(8px) scale(0.96); }
+    }
+
+    .toast-icon { flex-shrink: 0; margin-top: 1px; }
+    .toast-new  .toast-icon { color: var(--color-primary); }
+    .toast-update .toast-icon { color: var(--color-info); }
+    .toast-error .toast-icon { color: var(--color-error); }
+
+    /* ============================================================
+       EMPTY STATE & LOADING
+    ============================================================ */
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface-dynamic) 50%, var(--color-surface-offset) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: var(--radius-sm);
+    }
+
+    .skeleton-row td {
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .skeleton-cell {
+      height: 14px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ============================================================
+       EMPTY STATE
+    ============================================================ */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: var(--space-12) var(--space-8);
+      color: var(--color-text-muted);
+    }
+
+    .empty-icon {
+      width: 44px;
+      height: 44px;
+      margin-bottom: var(--space-4);
+      color: var(--color-text-faint);
+    }
+
+    .empty-state h3 {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: var(--space-2);
+    }
+
+    .empty-state p {
+      font-size: var(--text-xs);
+      max-width: 32ch;
+      color: var(--color-text-muted);
+    }
+
+    /* ============================================================
+       SCROLLBARS (styled for dark mode)
+    ============================================================ */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-surface-dynamic); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-border); }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 768px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <!-- ============================================================
+       SIDEBAR
+  ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <!-- SVG Logo: Snowball Wealth — minimal S-curve + bar chart -->
+      <svg class="logo-icon" viewBox="0 0 32 32" fill="none" aria-label="YTA Swarms logo">
+        <rect width="32" height="32" rx="7" fill="#22c55e" opacity="0.12"/>
+        <path d="M8 22 C8 22, 14 18, 16 14 C18 10, 24 10, 24 10" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        <rect x="7" y="19" width="3" height="6" rx="1" fill="#22c55e" opacity="0.5"/>
+        <rect x="12" y="15" width="3" height="10" rx="1" fill="#22c55e" opacity="0.65"/>
+        <rect x="17" y="11" width="3" height="14" rx="1" fill="#22c55e" opacity="0.8"/>
+        <rect x="22" y="8" width="3" height="17" rx="1" fill="#22c55e"/>
+      </svg>
+      <div class="logo-text">
+        <strong>YTA Swarms</strong>
+        <span>Snowball Wealth</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Pipeline</div>
+      <button class="sidebar-item active" onclick="setView('overview')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Overview
+      </button>
+      <button class="sidebar-item" onclick="setView('jobs')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Video Jobs
+        <span class="item-badge" id="jobs-badge">—</span>
+      </button>
+      <button class="sidebar-item" onclick="setView('agents')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        Agents
+        <span class="item-badge">9</span>
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Status</div>
+      <div id="status-filters"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="scheduler-widget">
+        <div class="scheduler-header">
+          <span class="scheduler-title">
+            <span class="scheduler-dot" id="scheduler-dot"></span>
+            Scheduler
+          </span>
+          <span style="font-size:10px;color:var(--color-text-faint)" id="scheduler-interval">10 min</span>
+        </div>
+        <div class="scheduler-row">
+          <span>Last run</span>
+          <span id="scheduler-last">—</span>
+        </div>
+        <div class="scheduler-row">
+          <span>Next run</span>
+          <span id="scheduler-next">—</span>
+        </div>
+        <div class="scheduler-row">
+          <span>Lock</span>
+          <span id="scheduler-lock">—</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+  ============================================================ -->
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title" id="topbar-title">Pipeline Overview</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="realtime-badge">
+          <span class="realtime-dot connecting" id="realtime-dot"></span>
+          <span id="realtime-label">Connecting…</span>
+        </div>
+        <button class="icon-btn" onclick="refreshAll()" title="Refresh data" aria-label="Refresh data">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        </button>
+        <button class="icon-btn" onclick="toggleTheme()" data-theme-toggle title="Toggle theme" aria-label="Toggle theme">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-content" id="main-content">
+
+      <!-- KPI row -->
+      <div class="kpi-grid" id="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Jobs</div><div class="kpi-value num" id="kpi-total">—</div><div class="kpi-sub">all time</div></div>
+        <div class="kpi-card"><div class="kpi-label">Published</div><div class="kpi-value num" id="kpi-published" style="color:var(--color-primary)">—</div><div class="kpi-sub">on YouTube</div></div>
+        <div class="kpi-card"><div class="kpi-label">In Progress</div><div class="kpi-value num" id="kpi-progress">—</div><div class="kpi-sub">active jobs</div></div>
+        <div class="kpi-card"><div class="kpi-label">Awaiting Quota</div><div class="kpi-value num" id="kpi-quota" style="color:var(--color-warning)">—</div><div class="kpi-sub">SEO_OPTIMIZED</div></div>
+        <div class="kpi-card"><div class="kpi-label">Errors</div><div class="kpi-value num" id="kpi-errors" style="color:var(--color-error)">—</div><div class="kpi-sub">need attention</div></div>
+      </div>
+
+      <!-- YouTube Quota indicator -->
+      <div class="quota-bar ok" id="quota-bar">
+        <div class="quota-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </div>
+        <div class="quota-info">
+          <div class="quota-title">YouTube Upload Quota</div>
+          <div class="quota-desc" id="quota-desc">All queued jobs published — no backlog</div>
+        </div>
+        <div class="quota-count num" id="quota-count">0</div>
+      </div>
+
+      <!-- Pipeline flow -->
+      <div class="section-header">
+        <span class="section-title">Pipeline Flow</span>
+        <span style="font-size:var(--text-xs);color:var(--color-text-faint)" id="pipeline-updated">—</span>
+      </div>
+      <div class="pipeline-container">
+        <div class="pipeline-flow" id="pipeline-flow">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Agent cards -->
+      <div class="section-header">
+        <span class="section-title">Agents</span>
+      </div>
+      <div class="agents-grid" id="agents-grid">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Jobs table -->
+      <div class="section-header">
+        <span class="section-title">Video Jobs</span>
+        <span style="font-size:var(--text-xs);color:var(--color-text-faint)" id="jobs-count-label">— jobs</span>
+      </div>
+      <div class="table-container">
+        <div class="table-toolbar">
+          <input class="search-input" type="search" placeholder="Search title…" id="search-input" oninput="filterJobs()">
+          <select class="filter-select" id="status-filter" onchange="filterJobs()">
+            <option value="">All statuses</option>
+            <option value="IDEA">IDEA</option>
+            <option value="RESEARCHED">RESEARCHED</option>
+            <option value="SCRIPTED">SCRIPTED</option>
+            <option value="VOICE_GENERATED">VOICE_GENERATED</option>
+            <option value="VIDEO_GENERATED">VIDEO_GENERATED</option>
+            <option value="MEDIA_GENERATED">MEDIA_GENERATED</option>
+            <option value="SEO_OPTIMIZED">SEO_OPTIMIZED</option>
+            <option value="PUBLISHED">PUBLISHED</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+          <select class="filter-select" id="format-filter" onchange="filterJobs()">
+            <option value="">All formats</option>
+            <option value="LONG">LONG</option>
+            <option value="SHORT">SHORT</option>
+          </select>
+        </div>
+        <div class="table-scroll">
+          <table class="jobs-table">
+            <thead>
+              <tr>
+                <th onclick="sortTable('id')">ID <span id="sort-id"></span></th>
+                <th onclick="sortTable('title_concept')">Title <span id="sort-title_concept"></span></th>
+                <th onclick="sortTable('status')">Status <span id="sort-status"></span></th>
+                <th onclick="sortTable('format')">Format <span id="sort-format"></span></th>
+                <th>YouTube</th>
+                <th>Error</th>
+                <th onclick="sortTable('created_at')">Created <span id="sort-created_at"></span></th>
+                <th onclick="sortTable('updated_at')">Updated <span id="sort-updated_at"></span></th>
+              </tr>
+            </thead>
+            <tbody id="jobs-tbody">
+              <!-- skeleton -->
+              <tr class="skeleton-row"><td><div class="skeleton skeleton-cell" style="width:28px"></div></td><td><div class="skeleton skeleton-cell" style="width:200px"></div></td><td><div class="skeleton skeleton-cell" style="width:90px"></div></td><td><div class="skeleton skeleton-cell" style="width:48px"></div></td><td><div class="skeleton skeleton-cell" style="width:80px"></div></td><td><div class="skeleton skeleton-cell" style="width:100px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td></tr>
+              <tr class="skeleton-row"><td><div class="skeleton skeleton-cell" style="width:28px"></div></td><td><div class="skeleton skeleton-cell" style="width:180px"></div></td><td><div class="skeleton skeleton-cell" style="width:90px"></div></td><td><div class="skeleton skeleton-cell" style="width:48px"></div></td><td><div class="skeleton skeleton-cell" style="width:80px"></div></td><td><div class="skeleton skeleton-cell" style="width:100px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td></tr>
+              <tr class="skeleton-row"><td><div class="skeleton skeleton-cell" style="width:28px"></div></td><td><div class="skeleton skeleton-cell" style="width:220px"></div></td><td><div class="skeleton skeleton-cell" style="width:90px"></div></td><td><div class="skeleton skeleton-cell" style="width:48px"></div></td><td><div class="skeleton skeleton-cell" style="width:80px"></div></td><td><div class="skeleton skeleton-cell" style="width:100px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td><td><div class="skeleton skeleton-cell" style="width:96px"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <span id="table-info">Loading…</span>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+/* ============================================================
+   CONFIG — set your Supabase credentials here
+   For production: inject via Vercel env vars at build time
+   or use a /api/config endpoint
+============================================================ */
+const SUPABASE_URL = 'https://oixvgvsytuqpihnjbmwq.supabase.co';
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '__SUPABASE_ANON_KEY__';
+
+/* ============================================================
+   PIPELINE CONFIG
+============================================================ */
+const PIPELINE_STAGES = [
+  { status: 'IDEA',            label: 'Content\nPlanning',    icon: '💡', agent: 'Content Planning', model: 'Claude Haiku',      model_key: 'haiku' },
+  { status: 'RESEARCHED',      label: 'Research',             icon: '🔍', agent: 'Research',          model: 'Claude Haiku',      model_key: 'haiku' },
+  { status: 'SCRIPTED',        label: 'Scriptwriting',        icon: '✍️', agent: 'Scriptwriting',     model: 'Claude Sonnet',     model_key: 'sonnet' },
+  { status: 'VOICE_GENERATED', label: 'Voice\nGeneration',   icon: '🎙️', agent: 'Voice Generation',  model: 'Edge TTS',          model_key: 'edge-tts' },
+  { status: 'VIDEO_GENERATED', label: 'Video\nGeneration',   icon: '🎬', agent: 'Video Generation',  model: 'Pexels + FFmpeg',   model_key: 'pexels' },
+  { status: 'MEDIA_GENERATED', label: 'Thumbnail',            icon: '🖼️', agent: 'Thumbnail',         model: 'Stability SDXL',    model_key: 'sdxl' },
+  { status: 'SEO_OPTIMIZED',   label: 'SEO\nOptimize',       icon: '📈', agent: 'SEO Optimization',  model: 'Claude Haiku',      model_key: 'haiku' },
+  { status: 'PUBLISHED',       label: 'Published',            icon: '🚀', agent: 'Publishing',        model: 'YouTube API v3',    model_key: 'ytapi' },
+];
+
+const MODEL_COLORS = {
+  haiku:    'dot-haiku',
+  sonnet:   'dot-sonnet',
+  'edge-tts': 'dot-edge-tts',
+  pexels:   'dot-pexels',
+  sdxl:     'dot-sdxl',
+  ytapi:    'dot-ytapi',
+};
+
+const AGENT_ICONS = {
+  'Content Planning': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
+  'Research':         `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
+  'Scriptwriting':    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
+  'Voice Generation': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+  'Video Generation': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+  'Thumbnail':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+  'SEO Optimization': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  'Publishing':       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+};
+
+const AGENT_ICON_COLORS = {
+  'Content Planning': '#3b82f6',
+  'Research':         '#a855f7',
+  'Scriptwriting':    '#14b8a6',
+  'Voice Generation': '#f97316',
+  'Video Generation': '#f59e0b',
+  'Thumbnail':        '#f59e0b',
+  'SEO Optimization': '#3b82f6',
+  'Publishing':       '#ef4444',
+};
+
+/* ============================================================
+   STATE
+============================================================ */
+let jobs = [];
+let filteredJobs = [];
+let sortKey = 'created_at';
+let sortDir = 'desc';
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let realtimeChannel = null;
+let schedulerTimer = null;
+let lastRefreshed = null;
+
+/* ============================================================
+   SUPABASE CLIENT
+============================================================ */
+const { createClient } = supabase;
+let sb;
+
+try {
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) {
+  showConfigError();
+}
+
+function showConfigError() {
+  document.getElementById('jobs-tbody').innerHTML = `
+    <tr><td colspan="8">
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <h3>Supabase not configured</h3>
+        <p>Set <code>SUPABASE_ANON_KEY</code> in Vercel environment variables and redeploy.</p>
+      </div>
+    </td></tr>`;
+}
+
+/* ============================================================
+   FETCH DATA
+============================================================ */
+async function fetchJobs() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb
+      .from('video_jobs')
+      .select('id, status, title_concept, format, seo_title, youtube_url, youtube_video_id, error_message, created_at, updated_at, voice_url, video_url, thumbnail_url')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+    jobs = data || [];
+    applyFilters();
+    updateKPIs();
+    updatePipelineFlow();
+    updateAgentCards();
+    updateSchedulerWidget();
+    lastRefreshed = new Date();
+    updateRealtimeLabel('live');
+    document.getElementById('pipeline-updated').textContent = 'Updated ' + relativeTime(lastRefreshed);
+  } catch(e) {
+    console.error('Fetch error:', e);
+    updateRealtimeLabel('error');
+    showToast('error', 'Fetch error', e.message || 'Could not load jobs');
+  }
+}
+
+/* ============================================================
+   KPI CALCULATIONS
+============================================================ */
+function updateKPIs() {
+  const total     = jobs.length;
+  const published = jobs.filter(j => j.status === 'PUBLISHED').length;
+  const errors    = jobs.filter(j => j.status === 'ERROR' || j.error_message).length;
+  const quota     = jobs.filter(j => j.status === 'SEO_OPTIMIZED').length;
+  const inProgress = jobs.filter(j => !['PUBLISHED','ERROR'].includes(j.status)).length;
+
+  animateNumber('kpi-total',     total);
+  animateNumber('kpi-published', published);
+  animateNumber('kpi-progress',  inProgress);
+  animateNumber('kpi-quota',     quota);
+  animateNumber('kpi-errors',    errors);
+
+  document.getElementById('jobs-badge').textContent = total;
+
+  // Quota bar
+  const quotaBar  = document.getElementById('quota-bar');
+  const quotaDesc = document.getElementById('quota-desc');
+  document.getElementById('quota-count').textContent = quota;
+  if (quota > 0) {
+    quotaBar.classList.remove('ok');
+    quotaDesc.textContent = `${quota} job${quota>1?'s':''} waiting for YouTube upload quota`;
+  } else {
+    quotaBar.classList.add('ok');
+    quotaDesc.textContent = 'All queued jobs published — no backlog';
+  }
+}
+
+function animateNumber(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = parseInt(el.textContent) || 0;
+  if (start === target) return;
+  const duration = 600;
+  const startTime = performance.now();
+  function step(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(start + (target - start) * eased);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ============================================================
+   PIPELINE FLOW VISUALIZATION
+============================================================ */
+function updatePipelineFlow() {
+  const counts = {};
+  PIPELINE_STAGES.forEach(s => { counts[s.status] = 0; });
+  jobs.forEach(j => {
+    if (counts.hasOwnProperty(j.status)) counts[j.status]++;
+  });
+
+  // Find the "active" stage — first stage with >0 jobs that isn't PUBLISHED
+  const activeIdx = PIPELINE_STAGES.findIndex(s => counts[s.status] > 0 && s.status !== 'PUBLISHED');
+
+  const flow = document.getElementById('pipeline-flow');
+  let html = '';
+
+  PIPELINE_STAGES.forEach((stage, idx) => {
+    const cnt = counts[stage.status] || 0;
+    const isActive = idx === activeIdx;
+    const isDone = idx > activeIdx && activeIdx !== -1 ? false : cnt > 0 && !isActive;
+    const stateClass = isActive ? 'active' : (stage.status === 'PUBLISHED' && cnt > 0 ? 'done' : '');
+
+    html += `
+      <div class="pipeline-step">
+        <div class="step-circle ${stateClass}" title="${stage.agent} (${stage.model})">
+          <span style="font-size:14px;line-height:1">${stage.icon}</span>
+        </div>
+        <div class="step-label ${stateClass}">${stage.label.replace('\n','<br>')}</div>
+        <div class="step-count ${cnt === 0 ? 'zero' : ''}">${cnt}</div>
+      </div>`;
+
+    if (idx < PIPELINE_STAGES.length - 1) {
+      const connClass = isActive ? 'active' : '';
+      html += `<div class="pipeline-connector ${connClass}"></div>`;
+    }
+  });
+
+  flow.innerHTML = html;
+}
+
+/* ============================================================
+   AGENT CARDS
+============================================================ */
+function updateAgentCards() {
+  const counts = {};
+  PIPELINE_STAGES.forEach(s => { counts[s.status] = 0; });
+  jobs.forEach(j => {
+    if (counts.hasOwnProperty(j.status)) counts[j.status]++;
+  });
+
+  // Find which agent is "running" (has jobs at its input status)
+  const runningAgents = new Set();
+  // Agent processes jobs AT its trigger status
+  const agentStatus = {
+    'Content Planning': null,     // generates IDEA
+    'Research':         'IDEA',
+    'Scriptwriting':    'RESEARCHED',
+    'Voice Generation': 'SCRIPTED',
+    'Video Generation': 'VOICE_GENERATED',
+    'Thumbnail':        null,     // runs alongside video gen
+    'SEO Optimization': 'VIDEO_GENERATED',
+    'Publishing':       'SEO_OPTIMIZED',
+  };
+
+  Object.entries(agentStatus).forEach(([agent, status]) => {
+    if (status && counts[status] > 0) runningAgents.add(agent);
+  });
+
+  // Last activity per agent (most recent job updated_at for relevant statuses)
+  const agentLastSeen = {};
+  PIPELINE_STAGES.forEach(stage => {
+    const relevantJobs = jobs.filter(j => j.status === stage.status);
+    if (relevantJobs.length > 0) {
+      const latest = relevantJobs.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
+      agentLastSeen[stage.agent] = latest.updated_at;
+    }
+  });
+
+  const grid = document.getElementById('agents-grid');
+  let html = '';
+
+  PIPELINE_STAGES.forEach(stage => {
+    const isRunning = runningAgents.has(stage.agent);
+    const hasError  = jobs.some(j => j.error_message && j.status !== 'PUBLISHED');
+    const cardClass = isRunning ? 'running' : '';
+    const statusClass = isRunning ? 'status-running' : 'status-idle';
+    const statusLabel = isRunning ? 'Running' : 'Idle';
+    const lastSeen = agentLastSeen[stage.agent];
+    const jobCount = counts[stage.status] || 0;
+    const iconColor = AGENT_ICON_COLORS[stage.agent] || '#6b7280';
+    const modelDot = MODEL_COLORS[stage.model_key] || 'dot-haiku';
+
+    html += `
+      <div class="agent-card ${cardClass}">
+        <div class="agent-header">
+          <div class="agent-icon" style="background:${iconColor}18;color:${iconColor}">
+            ${AGENT_ICONS[stage.agent] || ''}
+          </div>
+          <span class="agent-status-badge ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="agent-name">${stage.agent}</div>
+        <div style="margin-top:var(--space-2)">
+          <span class="agent-model">
+            <span class="model-dot ${modelDot}"></span>
+            ${stage.model}
+          </span>
+        </div>
+        <div class="agent-footer">
+          <span class="agent-meta">${lastSeen ? 'Last: ' + relativeTime(new Date(lastSeen)) : 'No activity'}</span>
+          <span class="agent-count">${jobCount} job${jobCount!==1?'s':''}</span>
+        </div>
+      </div>`;
+  });
+
+  grid.innerHTML = html;
+}
+
+/* ============================================================
+   SCHEDULER WIDGET
+============================================================ */
+function updateSchedulerWidget() {
+  const dot  = document.getElementById('scheduler-dot');
+  const last = document.getElementById('scheduler-last');
+  const next = document.getElementById('scheduler-next');
+  const lock = document.getElementById('scheduler-lock');
+
+  // Infer last run from most recently updated job
+  const sorted = [...jobs].sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
+  if (sorted.length > 0) {
+    const lastRun = new Date(sorted[0].updated_at);
+    last.textContent = relativeTime(lastRun);
+    // Next run = last run + 10 min
+    const nextRun = new Date(lastRun.getTime() + 10 * 60 * 1000);
+    next.textContent = nextRun > new Date() ? relativeTime(nextRun) : 'Running…';
+    dot.className = 'scheduler-dot';
+  } else {
+    last.textContent = 'No data';
+    next.textContent = '—';
+  }
+
+  lock.textContent = 'No';
+}
+
+/* ============================================================
+   JOBS TABLE
+============================================================ */
+function applyFilters() {
+  const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const status = document.getElementById('status-filter')?.value || '';
+  const format = document.getElementById('format-filter')?.value || '';
+
+  filteredJobs = jobs.filter(j => {
+    const title = (j.title_concept || j.seo_title || '').toLowerCase();
+    if (search && !title.includes(search) && !String(j.id).includes(search)) return false;
+    if (status && j.status !== status) return false;
+    if (format && j.format !== format) return false;
+    return true;
+  });
+
+  // Sort
+  filteredJobs.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  currentPage = 1;
+  renderTable();
+  document.getElementById('jobs-count-label').textContent = `${filteredJobs.length} job${filteredJobs.length!==1?'s':''}`;
+}
+
+function filterJobs() { applyFilters(); }
+
+function sortTable(key) {
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = 'desc';
+  }
+  // Update sort arrows
+  ['id','title_concept','status','format','created_at','updated_at'].forEach(k => {
+    const el = document.getElementById(`sort-${k}`);
+    if (el) el.textContent = k === sortKey ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  });
+  document.querySelectorAll('.jobs-table th').forEach(th => th.classList.remove('sorted'));
+  applyFilters();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('jobs-tbody');
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = filteredJobs.slice(start, start + PAGE_SIZE);
+
+  if (page.length === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="8">
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>
+          </svg>
+          <h3>No jobs found</h3>
+          <p>Adjust your filters or wait for the scheduler to pick up new ideas.</p>
+        </div>
+      </td></tr>`;
+    document.getElementById('table-info').textContent = '0 results';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = page.map(j => {
+    const statusKey  = j.status ? j.status.toLowerCase() : 'idea';
+    const title      = j.seo_title || j.title_concept || '—';
+    const ytLink     = j.youtube_url
+      ? `<a class="yt-link" href="${j.youtube_url}" target="_blank" rel="noopener noreferrer">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+           Watch
+         </a>`
+      : j.youtube_video_id
+      ? `<a class="yt-link" href="https://youtu.be/${j.youtube_video_id}" target="_blank" rel="noopener noreferrer">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+           ${j.youtube_video_id.slice(0,8)}…
+         </a>`
+      : '<span style="color:var(--color-text-faint)">—</span>';
+
+    const errorCell  = j.error_message
+      ? `<span class="error-cell" title="${escHtml(j.error_message)}">${escHtml(j.error_message.slice(0,40))}${j.error_message.length>40?'…':''}</span>`
+      : '<span style="color:var(--color-text-faint)">—</span>';
+
+    return `
+      <tr>
+        <td class="num" style="color:var(--color-text-faint)">${j.id}</td>
+        <td class="title-cell" title="${escHtml(title)}">${escHtml(title)}</td>
+        <td><span class="status-pill pill-${statusKey}">${j.status || '—'}</span></td>
+        <td><span class="format-pill format-${(j.format||'').toLowerCase()}">${j.format || '—'}</span></td>
+        <td>${ytLink}</td>
+        <td>${errorCell}</td>
+        <td class="time-cell">${fmtDate(j.created_at)}</td>
+        <td class="time-cell">${fmtDate(j.updated_at)}</td>
+      </tr>`;
+  }).join('');
+
+  // Pagination
+  const total = filteredJobs.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const infoEl = document.getElementById('table-info');
+  infoEl.textContent = `${start+1}–${Math.min(start+PAGE_SIZE, total)} of ${total}`;
+
+  let pages = '';
+  pages += `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+  </button>`;
+
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 1) {
+      pages += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+    } else if (Math.abs(i - currentPage) === 2) {
+      pages += `<span style="color:var(--color-text-faint);padding:0 2px">…</span>`;
+    }
+  }
+
+  pages += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+  </button>`;
+
+  document.getElementById('pagination').innerHTML = pages;
+}
+
+function goPage(p) {
+  const totalPages = Math.ceil(filteredJobs.length / PAGE_SIZE);
+  if (p < 1 || p > totalPages) return;
+  currentPage = p;
+  renderTable();
+}
+
+/* ============================================================
+   SUPABASE REALTIME
+============================================================ */
+function setupRealtime() {
+  if (!sb) return;
+  updateRealtimeLabel('connecting');
+
+  realtimeChannel = sb.channel('video_jobs_changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'video_jobs'
+    }, (payload) => {
+      handleRealtimeEvent(payload);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        updateRealtimeLabel('live');
+      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        updateRealtimeLabel('error');
+        // Retry after 5s
+        setTimeout(setupRealtime, 5000);
+      }
+    });
+}
+
+function handleRealtimeEvent(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload;
+
+  if (eventType === 'INSERT') {
+    jobs.unshift(newRow);
+    showToast('new', 'New job', `#${newRow.id} — ${newRow.title_concept || 'Untitled'}`);
+  } else if (eventType === 'UPDATE') {
+    const idx = jobs.findIndex(j => j.id === newRow.id);
+    if (idx !== -1) {
+      const prevStatus = jobs[idx].status;
+      jobs[idx] = newRow;
+      if (prevStatus !== newRow.status) {
+        showToast('update', 'Status update', `#${newRow.id} → ${newRow.status}`);
+      }
+    } else {
+      jobs.unshift(newRow);
+    }
+  } else if (eventType === 'DELETE') {
+    jobs = jobs.filter(j => j.id !== oldRow.id);
+  }
+
+  applyFilters();
+  updateKPIs();
+  updatePipelineFlow();
+  updateAgentCards();
+  updateSchedulerWidget();
+  lastRefreshed = new Date();
+  document.getElementById('pipeline-updated').textContent = 'Updated just now';
+}
+
+/* ============================================================
+   REALTIME STATUS INDICATOR
+============================================================ */
+function updateRealtimeLabel(state) {
+  const dot   = document.getElementById('realtime-dot');
+  const label = document.getElementById('realtime-label');
+  if (state === 'live') {
+    dot.className = 'realtime-dot';
+    label.textContent = 'Live';
+  } else if (state === 'connecting') {
+    dot.className = 'realtime-dot connecting';
+    label.textContent = 'Connecting…';
+  } else {
+    dot.className = 'realtime-dot error';
+    label.textContent = 'Disconnected';
+  }
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+function showToast(type, title, message) {
+  const icons = {
+    new:    `<svg class="toast-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>`,
+    update: `<svg class="toast-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>`,
+    error:  `<svg class="toast-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+  };
+
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    ${icons[type] || ''}
+    <div>
+      <div style="font-weight:600;margin-bottom:1px">${escHtml(title)}</div>
+      <div style="color:var(--color-text-muted)">${escHtml(message)}</div>
+    </div>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+/* ============================================================
+   STATUS FILTERS (sidebar)
+============================================================ */
+function renderStatusFilters() {
+  const statuses = ['IDEA','RESEARCHED','SCRIPTED','VOICE_GENERATED','VIDEO_GENERATED','MEDIA_GENERATED','SEO_OPTIMIZED','PUBLISHED'];
+  const labels = {
+    'IDEA': 'Idea', 'RESEARCHED': 'Researched', 'SCRIPTED': 'Scripted',
+    'VOICE_GENERATED': 'Voice', 'VIDEO_GENERATED': 'Video', 'MEDIA_GENERATED': 'Thumbnail',
+    'SEO_OPTIMIZED': 'SEO', 'PUBLISHED': 'Published'
+  };
+  const container = document.getElementById('status-filters');
+  container.innerHTML = statuses.map(s => `
+    <button class="sidebar-item" onclick="quickFilter('${s}')">
+      <span class="status-pill pill-${s.toLowerCase()}" style="font-size:9px;padding:1px 5px">${labels[s]}</span>
+      <span class="item-badge" id="sidebar-count-${s}">0</span>
+    </button>`).join('');
+}
+
+function updateSidebarCounts() {
+  const statuses = ['IDEA','RESEARCHED','SCRIPTED','VOICE_GENERATED','VIDEO_GENERATED','MEDIA_GENERATED','SEO_OPTIMIZED','PUBLISHED'];
+  statuses.forEach(s => {
+    const el = document.getElementById(`sidebar-count-${s}`);
+    if (el) el.textContent = jobs.filter(j => j.status === s).length;
+  });
+}
+
+function quickFilter(status) {
+  document.getElementById('status-filter').value = status;
+  filterJobs();
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' +
+         d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
+}
+
+function relativeTime(date) {
+  if (!date) return '—';
+  const diff = (new Date() - date) / 1000;
+  if (diff < 0) {
+    const f = Math.abs(diff);
+    if (f < 60) return 'in ' + Math.round(f) + 's';
+    if (f < 3600) return 'in ' + Math.round(f/60) + 'm';
+    return 'in ' + Math.round(f/3600) + 'h';
+  }
+  if (diff < 60)   return Math.round(diff) + 's ago';
+  if (diff < 3600) return Math.round(diff/60) + 'm ago';
+  if (diff < 86400) return Math.round(diff/3600) + 'h ago';
+  return Math.round(diff/86400) + 'd ago';
+}
+
+/* ============================================================
+   VIEW SWITCHING
+============================================================ */
+function setView(view) {
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('topbar-title').textContent = {
+    overview: 'Pipeline Overview',
+    jobs: 'Video Jobs',
+    agents: 'Agents',
+  }[view] || 'Dashboard';
+  // All sections always visible; just scroll to relevant section
+}
+
+/* ============================================================
+   THEME TOGGLE
+============================================================ */
+let currentTheme = 'dark';
+function toggleTheme() {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  const btn = document.querySelector('[data-theme-toggle]');
+  if (btn) {
+    btn.innerHTML = currentTheme === 'dark'
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`;
+  }
+}
+
+/* ============================================================
+   REFRESH
+============================================================ */
+async function refreshAll() {
+  await fetchJobs();
+  showToast('update', 'Refreshed', 'Data synced at ' + new Date().toLocaleTimeString());
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+async function init() {
+  renderStatusFilters();
+  updatePipelineFlow();   // render skeleton flow
+  updateAgentCards();     // render skeleton agents
+  await fetchJobs();
+  updateSidebarCounts();
+  setupRealtime();
+
+  // Fallback polling every 30s (backup for realtime)
+  setInterval(async () => {
+    if (document.visibilityState === 'visible') {
+      await fetchJobs();
+      updateSidebarCounts();
+    }
+  }, 30_000);
+
+  // Keep relative timestamps fresh
+  setInterval(() => {
+    if (lastRefreshed) {
+      document.getElementById('pipeline-updated').textContent = 'Updated ' + relativeTime(lastRefreshed);
+    }
+  }, 10_000);
+}
+
+init();
+</script>
+</body>
+</html>
