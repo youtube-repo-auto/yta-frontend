@@ -1,183 +1,196 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import createClient from "@/lib/supabase/client";
-import { VideoJob } from "@/types/database";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
+// app/review/page.tsx
+'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import type { VideoJob } from '@/lib/hooks';
 
 export default function ReviewPage() {
-  const [jobs, setJobs] = useState<VideoJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState<Record<string, string>>({});
-  const [processing, setProcessing] = useState<string | null>(null);
-
-  async function fetchJobs() {
-    setLoading(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("video_jobs")
-      .select("*")
-      .eq("status", "SCRIPTED")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Fout bij ophalen video jobs:", error);
-    } else {
-      setJobs(data ?? []);
-    }
-    setLoading(false);
-  }
+  const [pendingJobs, setPendingJobs] = useState<VideoJob[]>([]);
+  const [selectedJob, setSelectedJob] = useState<VideoJob | null>(null);
+  const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
-    fetchJobs();
+    loadPendingJobs();
   }, []);
 
-  async function handleApprove(jobId: string) {
-    setProcessing(jobId);
-    try {
-      const res = await fetch(`/api/videos/${jobId}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback: feedback[jobId] || "" }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
-    } catch (err) {
-      console.error("Fout bij goedkeuren:", err);
-    } finally {
-      setProcessing(null);
-    }
+  async function loadPendingJobs() {
+    const { data } = await supabase
+      .from('video_jobs')
+      .select('*')
+      .in('status', ['SCRIPTED', 'MEDIA_GENERATED', 'SEO_OPTIMIZED'])
+      .order('created_at', { ascending: true });
+    setPendingJobs(data || []);
+    if (data?.length && !selectedJob) setSelectedJob(data[0]);
   }
 
-  async function handleReject(jobId: string) {
-    setProcessing(jobId);
-    try {
-      const res = await fetch(`/api/videos/${jobId}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback: feedback[jobId] || "" }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
-    } catch (err) {
-      console.error("Fout bij afwijzen:", err);
-    } finally {
-      setProcessing(null);
-    }
+  async function handleApprove() {
+    if (!selectedJob) return;
+
+    const nextStatus =
+      selectedJob.status === 'SCRIPTED' ? 'SCRIPT_APPROVED' :
+      selectedJob.status === 'SEO_OPTIMIZED' ? 'UPLOADED' :
+      selectedJob.status;
+
+    await supabase.from('video_jobs').update({
+      status: nextStatus,
+      script_approved: true,
+      review_status: 'approved',
+      review_feedback: feedback || null,
+    }).eq('id', selectedJob.id);
+
+    setFeedback('');
+    setSelectedJob(null);
+    loadPendingJobs();
+  }
+
+  async function handleReject() {
+    if (!selectedJob) return;
+
+    await supabase.from('video_jobs').update({
+      review_status: 'rejected',
+      review_feedback: feedback,
+      status: 'IDEA',
+    }).eq('id', selectedJob.id);
+
+    setFeedback('');
+    setSelectedJob(null);
+    loadPendingJobs();
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Script Review</h1>
-          <Badge>{jobs.length} wachtend</Badge>
-        </div>
-        <Button variant="outline" size="sm" onClick={fetchJobs} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Vernieuwen
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Review Queue ({pendingJobs.length})</h1>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-          <RefreshCw className="w-6 h-6 animate-spin" />
-          <span>Laden...</span>
+      <div className="grid grid-cols-3 gap-6">
+        {/* Job List */}
+        <div className="space-y-2">
+          {pendingJobs.map((job) => (
+            <button
+              key={job.id}
+              onClick={() => setSelectedJob(job)}
+              className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                selectedJob?.id === job.id
+                  ? 'bg-blue-900/40 border-blue-700'
+                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-sm font-medium">{job.title_concept}</div>
+              <div className="text-xs text-slate-500">{job.status} · {job.format}</div>
+            </button>
+          ))}
+          {pendingJobs.length === 0 && (
+            <div className="text-slate-500 text-sm p-4">No items to review</div>
+          )}
         </div>
-      ) : jobs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Geen scripts wachtend op review. ✅
-          </CardContent>
-        </Card>
-      ) : (
-        jobs.map((job) => (
-          <Card key={job.id} className="border-l-4 border-l-yellow-400">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">
-                      {job.title_concept ?? "(geen titel)"}
-                    </CardTitle>
-                    <Badge
-                      variant="outline"
-                      className={
-                        job.format === "SHORT"
-                          ? "text-purple-600 border-purple-400 text-xs"
-                          : "text-blue-600 border-blue-400 text-xs"
-                      }
-                    >
-                      {job.format ?? "LONG"}
-                    </Badge>
+
+        {/* Review Panel */}
+        {selectedJob && (
+          <div className="col-span-2 space-y-4">
+            {/* Title & Meta */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+              <h2 className="text-lg font-bold">{selectedJob.title_concept}</h2>
+              <div className="flex gap-4 mt-2 text-sm text-slate-400">
+                <span>{selectedJob.format}</span>
+                <span>{selectedJob.niche}</span>
+                <span>{selectedJob.script_word_count} words</span>
+                {selectedJob.script_quality_score && (
+                  <span className={selectedJob.script_quality_score >= 75 ? 'text-green-400' : 'text-yellow-400'}>
+                    Script: {selectedJob.script_quality_score}/100
+                  </span>
+                )}
+                {selectedJob.seo_score && (
+                  <span className={selectedJob.seo_score >= 75 ? 'text-green-400' : 'text-yellow-400'}>
+                    SEO: {selectedJob.seo_score}/100
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Thumbnail Preview */}
+            {selectedJob.thumbnail_url && (
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-2">Thumbnail</h3>
+                <img
+                  src={selectedJob.thumbnail_url}
+                  alt="Thumbnail"
+                  className="rounded-lg max-w-md"
+                />
+              </div>
+            )}
+
+            {/* Audio Preview */}
+            {selectedJob.voice_file_url && (
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-2">Voice Preview</h3>
+                <audio controls className="w-full">
+                  <source src={selectedJob.voice_file_url} type="audio/wav" />
+                </audio>
+                <div className="text-xs text-slate-500 mt-1">
+                  Duration: {Math.round((selectedJob.voice_duration_seconds || 0) / 60)} min
+                  · WER: {((selectedJob.voice_word_error_rate || 0) * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
+
+            {/* Video Preview */}
+            {selectedJob.video_file_url && (
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-2">Video Preview</h3>
+                <video controls className="w-full rounded-lg max-h-96">
+                  <source src={selectedJob.video_file_url} type="video/mp4" />
+                </video>
+              </div>
+            )}
+
+            {/* Script */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">Script</h3>
+              <div className="text-sm text-slate-300 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                {selectedJob.script}
+              </div>
+            </div>
+
+            {/* SEO Preview */}
+            {selectedJob.seo_title && (
+              <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-2">SEO</h3>
+                <div className="space-y-2 text-sm">
+                  <div><span className="text-slate-500">Title:</span> {selectedJob.seo_title}</div>
+                  <div><span className="text-slate-500">Tags:</span> {(selectedJob.seo_tags || []).join(', ')}</div>
+                  <div className="text-slate-400 max-h-32 overflow-y-auto">
+                    {selectedJob.seo_description}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {job.niche ?? "—"} · {job.script_word_count ?? 0} woorden ·{" "}
-                    {new Date(job.created_at).toLocaleDateString("nl-NL")}
-                  </p>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="text-yellow-600 border-yellow-400 shrink-0 ml-4"
-                >
-                  SCRIPTED
-                </Badge>
               </div>
-            </CardHeader>
+            )}
 
-            <CardContent className="space-y-4">
-              <div className="bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">
-                  {job.script ?? "(geen script)"}
-                </pre>
-              </div>
-
-              {job.keyword_targets && job.keyword_targets.trim() !== "" && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Keywords
-                  </p>
-                  <p className="text-sm">{job.keyword_targets}</p>
-                </div>
-              )}
-
-              <Textarea
-                placeholder="Optioneel: feedback of reden voor afwijzing..."
-                value={feedback[job.id] || ""}
-                onChange={(e) =>
-                  setFeedback((prev) => ({ ...prev, [job.id]: e.target.value }))
-                }
-                rows={2}
-                className="text-sm"
+            {/* Actions */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Feedback (optional)..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm mb-3 resize-none"
+                rows={3}
               />
-
               <div className="flex gap-3">
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                  disabled={processing === job.id}
-                  onClick={() => handleApprove(job.id)}
+                <button
+                  onClick={handleApprove}
+                  className="px-6 py-2 bg-green-700 hover:bg-green-600 rounded-lg font-medium transition-colors"
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Goedkeuren → SCRIPT_APPROVED
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={processing === job.id}
-                  onClick={() => handleReject(job.id)}
+                  Approve
+                </button>
+                <button
+                  onClick={handleReject}
+                  className="px-6 py-2 bg-red-700 hover:bg-red-600 rounded-lg font-medium transition-colors"
                 >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Afwijzen
-                </Button>
+                  Reject
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        ))
-      )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
